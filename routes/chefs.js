@@ -1,43 +1,33 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/authMiddleware');
+const {
+  getMyChefProfile,
+  updateMyChefSettings,
+  getAllChefs,
+  adminUpdateChefStatus,
+  getChefBySlug
+} = require('../controllers/chefController');
 const Chef = require('../models/Chef');
 const User = require('../models/User');
 
-// @route   GET /api/chefs
-// @desc    Liste des chefs actifs
-// @access  Public
-router.get('/', async (req, res) => {
-  try {
-    const chefs = await Chef.find({ statut: 'ACTIVE' })
-      .populate('userId', 'nom prenom email')
-      .select('-__v');
-    
-    res.json({ chefs });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Erreur serveur' });
-  }
-});
+// --- Routes Publiques (Liste des chefs pour les clients) ---
+router.get('/', getAllChefs);
+router.get('/:slug', getChefBySlug);
 
-// @route   GET /api/chefs/:id
-// @desc    Détails d'un chef
-// @access  Public
-router.get('/:id', async (req, res) => {
-  try {
-    const chef = await Chef.findById(req.params.id)
-      .populate('userId', 'nom prenom email telephone');
-    
-    if (!chef) {
-      return res.status(404).json({ msg: 'Chef non trouvé' });
-    }
+// --- Routes du chef connecté ---
+router
+  .route('/my/profile')
+  .get(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), getMyChefProfile);
 
-    res.json({ chef });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Erreur serveur' });
-  }
-});
+router
+  .route('/my/settings')
+  .put(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), updateMyChefSettings);
+
+// --- Routes SuperAdmin (Gestion des chefs) ---
+router
+  .route('/:id/status')
+  .patch(protect, authorize('SUPER_ADMIN'), adminUpdateChefStatus);
 
 // @route   POST /api/chefs
 // @desc    Créer un chef
@@ -121,24 +111,6 @@ router.put('/:id', protect, async (req, res) => {
       msg: 'Chef mis à jour',
       chef
     });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Erreur serveur' });
-  }
-});
-
-// @route   GET /api/chefs/my/profile
-// @desc    Profil du chef connecté
-// @access  Private (CHEF)
-router.get('/my/profile', protect, authorize('CHEF'), async (req, res) => {
-  try {
-    const chef = await Chef.findOne({ userId: req.user._id });
-    
-    if (!chef) {
-      return res.status(404).json({ msg: 'Profil chef non trouvé' });
-    }
-
-    res.json({ chef });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: 'Erreur serveur' });

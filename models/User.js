@@ -9,6 +9,11 @@ const UserSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  matricule: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
   password: {
     type: String,
     required: true,
@@ -28,7 +33,7 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['CLIENT', 'CHEF', 'SUPER_ADMIN'],
+    enum: ['CLIENT', 'CHEF', 'ADMIN', 'SUPER_ADMIN'],
     default: 'CLIENT'
   },
   pickupPoint: {

@@ -21,6 +21,14 @@ const ChefSchema = new mongoose.Schema({
     required: true
   },
   email: String,
+  bio: {
+    type: String,
+    default: ''
+  },
+  cuisineType: {
+    type: String,
+    default: ''
+  },
   address: String,
   quartier: String,
   location: {
@@ -31,6 +39,7 @@ const ChefSchema = new mongoose.Schema({
     prixMidi: { type: Number, default: 7500 },
     prixSoir: { type: Number, default: 7500 },
     prixComplet: { type: Number, default: 14000 },
+    preparationAddress: { type: String, default: '' },
     joursService: {
       lundi: { type: Boolean, default: true },
       mardi: { type: Boolean, default: true },
@@ -48,6 +57,10 @@ const ChefSchema = new mongoose.Schema({
     nom: String,
     dateAjout: { type: Date, default: Date.now }
   }],
+  isSuspended: {
+    type: Boolean,
+    default: false
+  },
   statut: {
     type: String,
     enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'],

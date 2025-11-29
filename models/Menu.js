@@ -1,39 +1,56 @@
 const mongoose = require('mongoose');
 
-const MenuSchema = new mongoose.Schema({
-  chefId: {
-    type: mongoose.Schema.Types.ObjectId,
+const dayMenuSchema = new mongoose.Schema(
+  {
+    day: {
+      // Ex: 'Lundi', 'Mardi', etc.
+      type: String,
+      required: true,
+      enum: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+    },
+    midi: {
+      // Plat du midi
+      type: String,
+      default: ''
+    },
+    soir: {
+      // Plat du soir
+      type: String,
+      default: ''
+    }
+  },
+  { _id: false }
+); // Pas besoin d'ID pour chaque jour
+
+const menuSchema = new mongoose.Schema({
+  chef: {
+    type: mongoose.Schema.ObjectId,
     ref: 'Chef',
-    required: true
+    required: true,
+    unique: true, // Un seul document de menu pour tout un chef
+    sparse: true
   },
-  weekIdentifier: {
+  // Le menu complet de la semaine (Array de 7 objets)
+  menu: {
+    type: [dayMenuSchema],
+    default: () => {
+      const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+      return days.map((day) => ({ day, midi: '', soir: '' }));
+    }
+  },
+  // ID pour marquer quelle semaine cela représente (utile pour l'historique futur)
+  weekId: {
     type: String,
-    required: true // Format: "2024-W48"
+    default: () => {
+      // Exemple: '2025-W48' (utilisé si on voulait versionner le menu par semaine)
+      const now = new Date();
+      return `${now.getFullYear()}-W${Math.ceil((now.getDay() + 1 + now.getTime() / 86400000) / 7)}`;
+    }
   },
-  semaine: {
-    type: String,
-    enum: ['CURRENT', 'NEXT'],
-    required: true
-  },
-  menus: {
-    lundi: { midi: String, soir: String },
-    mardi: { midi: String, soir: String },
-    mercredi: { midi: String, soir: String },
-    jeudi: { midi: String, soir: String },
-    vendredi: { midi: String, soir: String },
-    samedi: { midi: String, soir: String },
-    dimanche: { midi: String, soir: String }
-  },
-  dateCreation: {
-    type: Date,
-    default: Date.now
-  },
-  dateModification: {
+  lastUpdated: {
     type: Date,
     default: Date.now
   }
 });
 
-MenuSchema.index({ chefId: 1, weekIdentifier: 1 }, { unique: true });
-
-module.exports = mongoose.model('Menu', MenuSchema);
+module.exports = mongoose.model('Menu', menuSchema);

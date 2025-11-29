@@ -2,6 +2,9 @@ require('dotenv').config({ path: '.env.local' });
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
+const chefRoutes = require('./routes/chefRoutes');
+const menuRoutes = require('./routes/menuRoutes');
 
 const app = express();
 
@@ -14,9 +17,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/chefs', require('./routes/chefs'));
-app.use('/api/menus', require('./routes/menus'));
+app.use('/api/auth', authRoutes);
+app.use('/api/chefs', chefRoutes);
+app.use('/api/menus', menuRoutes);
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/ratings', require('./routes/ratings'));

@@ -69,16 +69,18 @@ const seedDatabase = async () => {
     console.log('📋 Création des menus...');
     for (const chef of chefs) {
       await Menu.create({
-        chefId: chef._id,
-        weekIdentifier: '2024-W48',
-        semaine: 'CURRENT',
-        menus: {
-          lundi: { midi: 'Riz sauce arachide', soir: 'Attiéké poisson' },
-          mardi: { midi: 'Pâtes sauce tomate', soir: 'Riz gras' },
-          mercredi: { midi: 'Fufu sauce gombo', soir: 'Banku poisson' },
-          jeudi: { midi: 'Riz sauce tomate', soir: 'Attiéké poulet' },
-          vendredi: { midi: 'Couscous', soir: 'Riz sauce arachide' }
-        }
+        chef: chef._id,
+        weekId: '2024-W48',
+        menu: [
+          { day: 'Lundi', midi: 'Riz sauce arachide', soir: 'Attiéké poisson' },
+          { day: 'Mardi', midi: 'Pâtes sauce tomate', soir: 'Riz gras' },
+          { day: 'Mercredi', midi: 'Fufu sauce gombo', soir: 'Banku poisson' },
+          { day: 'Jeudi', midi: 'Riz sauce tomate', soir: 'Attiéké poulet' },
+          { day: 'Vendredi', midi: 'Couscous', soir: 'Riz sauce arachide' },
+          { day: 'Samedi', midi: '', soir: '' },
+          { day: 'Dimanche', midi: '', soir: '' }
+        ],
+        lastUpdated: new Date()
       });
     }
 
