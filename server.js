@@ -5,6 +5,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
 
+// --- Import des routes ---
 const authRoutes = require('./routes/authRoutes');
 const chefRoutes = require('./routes/chefRoutes');
 const menuRoutes = require('./routes/menuRoutes');
@@ -13,30 +14,52 @@ const orderRoutes = require('./routes/orders');
 const ratingRoutes = require('./routes/ratingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
+// ------------------------------------------------------------
+// 🔌 Connexion MongoDB Atlas
+// ------------------------------------------------------------
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/chefetoile');
-    logger.info('MongoDB connecté', { host: conn.connection.host });
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+
+    logger.info('✅ MongoDB connecté avec succès', {
+      host: conn.connection.host,
+      db: conn.connection.name,
+    });
+
   } catch (error) {
-    logger.error('Erreur MongoDB', { error: error.message });
+    logger.error('❌ Erreur de connexion MongoDB', {
+      message: error.message,
+    });
     process.exit(1);
   }
 };
+
+// Une seule exécution
 connectDB();
 
+// ------------------------------------------------------------
+// 🚀 Initialisation Express
+// ------------------------------------------------------------
 const app = express();
-app.set('trust proxy', true); // nécessaire derrière Render/Reverse proxy, même en multi-proxy
+app.get('/', (req, res) => { res.json({ status: 'API OK' }); });
+app.get('/', (req, res) => { res.json({ status: 'API OK' }); });
 
-// Utiliser l'IP réelle du client même derrière plusieurs proxys
+// Render / reverse proxy support
+app.set('trust proxy', true);
+
+// Obtenir l'IP réelle même derrière plusieurs proxies
 const getClientIp = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
+  if (forwarded) return forwarded.split(',')[0].trim();
   return req.ip;
 };
 
-// --- CORS verrouillé ---
+// ------------------------------------------------------------
+// 🔐 CORS verrouillé
+// ------------------------------------------------------------
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
   'http://localhost:3000',
@@ -46,7 +69,6 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Autorise les requêtes sans origin (ex: cURL, mobile) ou si dans la liste
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
@@ -55,19 +77,22 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   credentials: true
 };
+
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
+// Body parser
 app.use(express.json());
 
-// --- Rate limiting ---
-// En dev/staging, on desserre le limiter pour éviter les 429 causés par le HMR/PWA.
+// ------------------------------------------------------------
+// 🛡️ Rate limiting
+// ------------------------------------------------------------
 const isDev = process.env.NODE_ENV !== 'production';
 
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 10, // 10 tentatives par 15 min (connexion lente friendly)
-  message: { message: 'Trop de tentatives de connexion. Réessaie dans quelques minutes.' },
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Trop de tentatives de connexion. Réessaie bientôt.' },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: getClientIp
@@ -75,20 +100,20 @@ const loginLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 5000 : 1000, // relâché en dev, plus souple en prod pour éviter les faux positifs
-  message: { message: 'Trop de requêtes. Réessaie dans quelques minutes.' },
+  max: isDev ? 5000 : 1000,
+  message: { message: 'Trop de requêtes. Réessaie bientôt.' },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: getClientIp,
-  // Évite le double comptage sur /auth/login (géré par loginLimiter)
   skip: (req) => req.path.startsWith('/auth/login')
 });
 
 app.use('/api/auth/login', loginLimiter);
-if (!isDev) {
-  app.use('/api', apiLimiter);
-}
+if (!isDev) app.use('/api', apiLimiter);
 
+// ------------------------------------------------------------
+// 📦 Routes principales
+// ------------------------------------------------------------
 app.use('/api/auth', authRoutes);
 app.use('/api/chefs', chefRoutes);
 app.use('/api/menus', menuRoutes);
@@ -97,19 +122,28 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/admin', adminRoutes);
 
-// --- Gestion globale des erreurs ---
+// ------------------------------------------------------------
+// ❗ Gestion globale des erreurs
+// ------------------------------------------------------------
 app.use((err, req, res, next) => {
   logger.error('Erreur serveur', {
     path: req.originalUrl,
     method: req.method,
     error: err.message,
   });
+
   if (!res.headersSent) {
     res.status(500).json({ message: 'Erreur serveur interne' });
   }
 });
 
+// ------------------------------------------------------------
+// 🚀 Démarrage du serveur
+// ------------------------------------------------------------
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  logger.info('Serveur démarré', { port: PORT, mode: process.env.NODE_ENV || 'development' });
+  logger.info('Serveur démarré', {
+    port: PORT,
+    mode: process.env.NODE_ENV || 'development'
+  });
 });
