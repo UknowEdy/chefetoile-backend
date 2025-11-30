@@ -8,8 +8,6 @@ const {
   adminUpdateChefStatus,
   getChefBySlug
 } = require('../controllers/chefController');
-const Chef = require('../models/Chef');
-const User = require('../models/User');
 
 // --- Routes Publiques (Liste des chefs pour les clients) ---
 router.get('/', getAllChefs);

@@ -1,53 +1,19 @@
 const mongoose = require('mongoose');
 
-const SubscriptionSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  chefId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Chef',
-    required: true
-  },
-  formule: {
-    type: String,
-    enum: ['MIDI', 'SOIR', 'COMPLET'],
-    required: true
-  },
-  subscriptionType: {
-    type: String,
-    enum: ['WEEKLY', 'MONTHLY', 'CUSTOM'],
-    default: 'WEEKLY'
-  },
-  customDays: Number,
-  prix: {
-    type: Number,
-    required: true
-  },
-  dateDebut: {
-    type: Date,
-    required: true
-  },
-  dateFin: {
-    type: Date,
-    required: true
-  },
+const subscriptionSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.ObjectId, ref: 'User', required: true },
+  chef: { type: mongoose.Schema.ObjectId, ref: 'Chef', required: true },
+  menu: { type: mongoose.Schema.ObjectId, ref: 'Menu', required: true },
+  formule: { type: String, enum: ['MIDI', 'SOIR', 'COMPLET'], required: true },
+  prixTotal: { type: Number, required: true },
+  dateDebut: { type: Date }, // Aligné sur le menu
+  dateFin: { type: Date },
   statut: {
     type: String,
-    enum: ['ACTIVE', 'EXPIRED', 'CANCELLED'],
-    default: 'ACTIVE'
+    enum: ['ACTIVE', 'PENDING_VALIDATION', 'REJECTED', 'COMPLETED'],
+    default: 'PENDING_VALIDATION'
   },
-  paiementStatut: {
-    type: String,
-    enum: ['PENDING', 'PAID', 'FAILED'],
-    default: 'PENDING'
-  },
-  dateCreation: {
-    type: Date,
-    default: Date.now
-  }
+  createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('Subscription', SubscriptionSchema);
+module.exports = mongoose.model('Subscription', subscriptionSchema);

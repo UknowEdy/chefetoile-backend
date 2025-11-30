@@ -1,45 +1,41 @@
 const mongoose = require('mongoose');
 
-const RatingSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
+const ratingSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.ObjectId,
     ref: 'User',
     required: true
   },
-  chefId: {
-    type: mongoose.Schema.Types.ObjectId,
+  chef: {
+    type: mongoose.Schema.ObjectId,
     ref: 'Chef',
     required: true
   },
-  orderId: {
-    type: mongoose.Schema.Types.ObjectId,
+  order: { 
+    type: mongoose.Schema.ObjectId,
     ref: 'Order',
-    required: true
+    required: true,
+    unique: true 
   },
   notes: {
-    qualiteNourriture: { type: Number, min: 1, max: 5, required: true },
-    ponctualite: { type: Number, min: 1, max: 5, required: true },
-    diversiteMenu: { type: Number, min: 1, max: 5, required: true },
-    communication: { type: Number, min: 1, max: 5, required: true },
-    presentation: { type: Number, min: 1, max: 5, required: true }
+    qualite: { type: Number, required: true },
+    ponctualite: { type: Number, required: true },
+    diversite: { type: Number, required: true },
+    presentation: { type: Number, required: true },
   },
-  moyenneGlobale: {
+  commentaire: {
+    type: String,
+    maxlength: 500
+  },
+  moyenneGlobale: { 
     type: Number,
-    min: 1,
+    min: 1, 
     max: 5
   },
-  commentaire: String,
-  dateCreation: {
+  createdAt: {
     type: Date,
     default: Date.now
   }
 });
 
-// Calculer la moyenne avant sauvegarde
-RatingSchema.pre('save', function(next) {
-  const { qualiteNourriture, ponctualite, diversiteMenu, communication, presentation } = this.notes;
-  this.moyenneGlobale = (qualiteNourriture + ponctualite + diversiteMenu + communication + presentation) / 5;
-  next();
-});
-
-module.exports = mongoose.model('Rating', RatingSchema);
+module.exports = mongoose.model('Rating', ratingSchema);

@@ -114,15 +114,14 @@ const seedDatabase = async () => {
     for (const client of clients) {
       const chef = chefs[Math.floor(Math.random() * chefs.length)];
       await Subscription.create({
-        userId: client._id,
-        chefId: chef._id,
+        user: client._id,
+        chef: chef._id,
         formule: ['MIDI', 'SOIR', 'COMPLET'][Math.floor(Math.random() * 3)],
-        subscriptionType: 'WEEKLY',
-        prix: 14000,
+        type: 'HEBDO',
+        prixTotal: 14000,
         dateDebut: today,
         dateFin: nextWeek,
-        statut: 'ACTIVE',
-        paiementStatut: 'PAID'
+        statut: 'ACTIVE'
       });
     }
 

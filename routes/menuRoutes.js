@@ -1,15 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
-const { getMyMenu, updateMyMenu } = require('../controllers/menuController');
+const { getMyMenu, updateMenu, createWeeklyMenu } = require('../controllers/menuController');
 
-// --- Routes d'administration du Menu (Accès CHEF/ADMIN/SUPER_ADMIN uniquement) ---
+// --- Routes d'administration du Menu ---
 router
   .route('/my')
-  .get(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), getMyMenu)
-  .put(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), updateMyMenu);
+  .get(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), getMyMenu);
 
-// --- Futures routes publiques de lecture du menu ---
-// router.route('/:chefId').get(getMenuByChefId); // Accessible aux clients
+// Création d'un menu daté pour la semaine
+router.route('/').post(protect, authorize('CHEF'), createWeeklyMenu);
+
+// Mise à jour d'un menu par ID
+router.route('/:id').put(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), updateMenu);
 
 module.exports = router;

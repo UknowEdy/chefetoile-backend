@@ -1,33 +1,59 @@
 const Menu = require('../models/Menu');
 const Chef = require('../models/Chef');
 
-const DEFAULT_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+// @desc    Créer un menu daté pour la semaine
+// @route   POST /api/menus
+// @access  Private (Rôle CHEF requis)
+exports.createWeeklyMenu = async (req, res) => {
+  try {
+    const { startDate, items, title, isActive } = req.body;
+    const chefProfile = await Chef.findOne({ userId: req.user.id || req.user._id });
+    if (!chefProfile) {
+      return res.status(404).json({ message: 'Profil Chef introuvable' });
+    }
 
-const createDefaultMenuData = (chefId) => ({
-  chef: chefId,
-  menu: DEFAULT_DAYS.map((day) => ({ day, midi: '', soir: '' }))
-});
+    const start = new Date(startDate);
+    start.setHours(12, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
 
-// @desc    Récupérer le menu de la semaine du chef connecté
+    const datedMenu = (items || []).map((item, idx) => {
+      const itemDate = new Date(start);
+      itemDate.setDate(start.getDate() + idx);
+      return { ...item, date: itemDate };
+    });
+
+    const menu = await Menu.create({
+      chef: chefProfile._id,
+      title: title || `Semaine du ${start.toLocaleDateString('fr-FR')}`,
+      startDate: start,
+      endDate: end,
+      isActive: isActive !== undefined ? isActive : true,
+      menu: datedMenu
+    });
+
+    res.status(201).json(menu);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erreur création menu', error: error.message });
+  }
+};
+
+// @desc    Récupérer le dernier menu actif du chef connecté
 // @route   GET /api/menus/my
 // @access  Private (Rôle CHEF requis)
 exports.getMyMenu = async (req, res) => {
   try {
-    const userId = req.user.id || req.user._id;
-    const chef = await Chef.findOne({ userId });
-
-    if (!chef) {
+    const chefProfile = await Chef.findOne({ userId: req.user.id || req.user._id });
+    if (!chefProfile) {
       return res.status(404).json({ message: 'Profil Chef non trouvé' });
     }
 
-    // Utiliser findOneAndUpdate avec upsert: true pour garantir l'existence du document
-    const menu = await Menu.findOneAndUpdate(
-      { chef: chef._id },
-      { $setOnInsert: createDefaultMenuData(chef._id) },
-      { new: true, upsert: true }
-    );
+    const menu = await Menu.findOne({ chef: chefProfile._id, isActive: true })
+      .sort('-startDate')
+      .lean();
 
-    res.status(200).json(menu);
+    res.status(200).json(menu || {});
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -37,43 +63,22 @@ exports.getMyMenu = async (req, res) => {
   }
 };
 
-// @desc    Mettre à jour le menu de la semaine du chef connecté
-// @route   PUT /api/menus/my
+// @desc    Mettre à jour le menu (par ID)
+// @route   PUT /api/menus/:id
 // @access  Private (Rôle CHEF requis)
-exports.updateMyMenu = async (req, res) => {
+exports.updateMenu = async (req, res) => {
   try {
-    const userId = req.user.id || req.user._id;
-    const chefDoc = await Chef.findOne({ userId });
-    const chefId = chefDoc?._id || userId;
+    const menuId = req.params.id;
+    const updates = req.body;
 
-    if (!chefDoc) {
-      return res.status(404).json({ message: 'Profil Chef non trouvé' });
-    }
-
-    const newMenuData = req.body.menu;
-    if (!Array.isArray(newMenuData)) {
-      return res
-        .status(400)
-        .json({ message: 'Le corps de la requête doit contenir un tableau "menu" valide.' });
-    }
-
-    // Utiliser findOneAndUpdate pour éviter les blocages et garantir la validation
     const menu = await Menu.findOneAndUpdate(
-      { chef: chefId },
-      {
-        $set: {
-          menu: newMenuData,
-          lastUpdated: Date.now()
-        }
-      },
-      {
-        new: true,
-        runValidators: true
-      }
+      { _id: menuId },
+      { ...updates, lastUpdated: Date.now() },
+      { new: true, runValidators: true }
     );
 
     if (!menu) {
-      return res.status(404).json({ message: 'Document Menu introuvable.' });
+      return res.status(404).json({ message: 'Menu non trouvé' });
     }
 
     res.status(200).json(menu);
