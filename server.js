@@ -25,7 +25,16 @@ const connectDB = async () => {
 connectDB();
 
 const app = express();
-app.set('trust proxy', 1); // nécessaire derrière Render/Reverse proxy
+app.set('trust proxy', true); // nécessaire derrière Render/Reverse proxy, même en multi-proxy
+
+// Utiliser l'IP réelle du client même derrière plusieurs proxys
+const getClientIp = (req) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip;
+};
 
 // --- CORS verrouillé ---
 const allowedOrigins = [
@@ -52,23 +61,27 @@ app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // --- Rate limiting ---
-// En développement, on desserre le limiter pour éviter les 429 causés par le HMR/PWA.
-const isDev = process.env.NODE_ENV === 'development';
+// En dev/staging, on desserre le limiter pour éviter les 429 causés par le HMR/PWA.
+const isDev = process.env.NODE_ENV !== 'production';
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
   max: 10, // 10 tentatives par 15 min (connexion lente friendly)
   message: { message: 'Trop de tentatives de connexion. Réessaie dans quelques minutes.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  keyGenerator: getClientIp
 });
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 5000 : 300, // relâché en dev
+  max: isDev ? 5000 : 1000, // relâché en dev, plus souple en prod pour éviter les faux positifs
   message: { message: 'Trop de requêtes. Réessaie dans quelques minutes.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  keyGenerator: getClientIp,
+  // Évite le double comptage sur /auth/login (géré par loginLimiter)
+  skip: (req) => req.path.startsWith('/auth/login')
 });
 
 app.use('/api/auth/login', loginLimiter);
