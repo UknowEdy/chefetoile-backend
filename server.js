@@ -11,6 +11,7 @@ const menuRoutes = require('./routes/menuRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const orderRoutes = require('./routes/orders');
 const ratingRoutes = require('./routes/ratingRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const connectDB = async () => {
   try {
@@ -81,6 +82,7 @@ app.use('/api/menus', menuRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/ratings', ratingRoutes);
+app.use('/api/admin', adminRoutes);
 
 // --- Gestion globale des erreurs ---
 app.use((err, req, res, next) => {
