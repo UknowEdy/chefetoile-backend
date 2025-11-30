@@ -6,12 +6,10 @@ const { getMyMenu, updateMenu, createWeeklyMenu } = require('../controllers/menu
 // --- Routes d'administration du Menu ---
 router
   .route('/my')
-  .get(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), getMyMenu);
+  .get(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), getMyMenu)
+  .put(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), updateMenu);
 
 // Création d'un menu daté pour la semaine
 router.route('/').post(protect, authorize('CHEF'), createWeeklyMenu);
-
-// Mise à jour d'un menu par ID
-router.route('/:id').put(protect, authorize('CHEF', 'ADMIN', 'SUPER_ADMIN'), updateMenu);
 
 module.exports = router;

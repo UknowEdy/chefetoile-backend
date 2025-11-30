@@ -4,13 +4,17 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 const {
   createSubscription,
   getSubscribersForChef,
-  validateSubscription
+  validateSubscription,
+  getMySubscriptions
 } = require('../controllers/subscriptionController');
 
 // --- Routes Client ---
 router
   .route('/')
   .post(protect, authorize('CLIENT'), createSubscription);
+router
+  .route('/my')
+  .get(protect, authorize('CLIENT'), getMySubscriptions);
 
 // --- Routes Chef ---
 router

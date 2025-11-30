@@ -80,4 +80,9 @@ const ChefSchema = new mongoose.Schema({
   }
 });
 
+// Index slug pour accès public
+ChefSchema.index({ slug: 1 }, { unique: true });
+// Index userId pour accès chef connecté
+ChefSchema.index({ userId: 1 });
+
 module.exports = mongoose.model('Chef', ChefSchema);

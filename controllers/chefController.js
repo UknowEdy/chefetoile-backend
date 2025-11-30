@@ -1,6 +1,7 @@
 const Chef = require('../models/Chef');
 const User = require('../models/User');
 const Menu = require('../models/Menu');
+const logger = require('../utils/logger');
 
 // @desc    Récupérer le profil du chef (pour le chef connecté)
 // @route   GET /api/chefs/my/profile
@@ -20,7 +21,7 @@ exports.getMyChefProfile = async (req, res) => {
     // Le Modèle Chef contient tout (settings, suspension, etc.)
     res.status(200).json(chef);
   } catch (error) {
-    console.error(error);
+    logger.error('Erreur getMyChefProfile', { user: req.user ? req.user.id : null, error: error.message });
     res.status(500).json({
       message: 'Erreur serveur lors de la récupération du profil Chef',
       error: error.message
@@ -80,7 +81,7 @@ exports.updateMyChefSettings = async (req, res) => {
 
     res.status(200).json(updatedChef);
   } catch (error) {
-    console.error(error);
+    logger.error('Erreur updateMyChefSettings', { user: req.user ? req.user.id : null, error: error.message });
     res.status(500).json({
       message: 'Erreur serveur lors de la mise à jour des réglages',
       error: error.message
@@ -123,7 +124,7 @@ exports.getAllChefs = async (req, res) => {
 
     res.status(200).json(chefs);
   } catch (error) {
-    console.error(error);
+    logger.error('Erreur getAllChefs', { error: error.message });
     res.status(500).json({
       message: 'Erreur serveur récupération chefs',
       error: error.message
@@ -159,7 +160,7 @@ exports.getChefBySlug = async (req, res) => {
 
     res.status(200).json(profile);
   } catch (error) {
-    console.error(error);
+    logger.error('Erreur getChefBySlug', { slug: req.params.slug, error: error.message });
     res.status(500).json({
       message: 'Erreur serveur récupération profil chef',
       error: error.message
@@ -187,12 +188,18 @@ exports.adminUpdateChefStatus = async (req, res) => {
 
     await chef.save();
 
+    logger.info('Statut chef mis à jour', {
+      chefId,
+      action: suspended ? 'SUSPEND' : 'ACTIVATE',
+      by: req.user ? req.user.id : null
+    });
+
     res.status(200).json({
       message: `Chef ${suspended ? 'suspendu' : 'activé'} avec succès`,
       chef
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Erreur adminUpdateChefStatus', { chefId: req.params.id, error: error.message });
     res.status(500).json({
       message: 'Erreur serveur mise à jour statut',
       error: error.message

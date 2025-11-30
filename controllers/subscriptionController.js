@@ -3,6 +3,7 @@ const Chef = require('../models/Chef');
 const Menu = require('../models/Menu');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const logger = require('../utils/logger');
 
 // @desc    Créer un nouvel abonnement
 // @route   POST /api/subscriptions
@@ -33,7 +34,11 @@ exports.createSubscription = async (req, res) => {
 
     res.status(201).json(subscription);
   } catch (error) {
-    console.error(error);
+    logger.error('Subscription creation failed', {
+      user: req.user ? req.user.id : null,
+      menuId,
+      error: error.message
+    });
     res.status(500).json({ message: 'Erreur création abonnement', error: error.message });
   }
 };
@@ -111,12 +116,22 @@ exports.validateSubscription = async (req, res) => {
     subscription.statut = 'ACTIVE';
     await subscription.save();
 
+    logger.info('Abonnement validé', {
+      subscriptionId,
+      ordersGenerated: orders.length,
+      by: req.user ? req.user.id : null
+    });
+
     res.status(200).json({
       message: 'Abonnement validé.',
       ordersGenerated: orders.length
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Subscription validation failed', {
+      subscriptionId: req.params.id,
+      user: req.user ? req.user.id : null,
+      error: error.message
+    });
     res.status(500).json({
       message: 'Erreur serveur lors de la validation de l\'abonnement.',
       error: error.message
@@ -149,9 +164,33 @@ exports.getSubscribersForChef = async (req, res) => {
 
     res.status(200).json(subscribers);
   } catch (error) {
-    console.error(error);
+    logger.error('Get subscribers failed', { user: req.user ? req.user.id : null, error: error.message });
     res.status(500).json({
       message: 'Erreur serveur lors de la récupération des abonnés',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Lister MES abonnements (côté client connecté)
+// @route   GET /api/subscriptions/my
+// @access  Private (Rôle CLIENT requis)
+exports.getMySubscriptions = async (req, res) => {
+  if (req.user.role !== 'CLIENT') {
+    return res.status(403).json({ message: 'Accès réservé au Client.' });
+  }
+
+  try {
+    const subs = await Subscription.find({ user: req.user.id || req.user._id })
+      .populate('chef', 'name slug')
+      .populate('menu', 'title startDate endDate')
+      .select('-__v');
+
+    res.status(200).json(subs);
+  } catch (error) {
+    logger.error('Get my subscriptions failed', { user: req.user ? req.user.id : null, error: error.message });
+    res.status(500).json({
+      message: 'Erreur serveur lors de la récupération des abonnements',
       error: error.message
     });
   }

@@ -57,6 +57,9 @@ const UserSchema = new mongoose.Schema({
   }
 });
 
+// Index email pour login rapide
+UserSchema.index({ email: 1 }, { unique: true });
+
 // Hash password avant sauvegarde
 UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {

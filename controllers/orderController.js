@@ -1,5 +1,8 @@
 const Order = require('../models/Order');
 const Chef = require('../models/Chef');
+const Subscription = require('../models/Subscription');
+const User = require('../models/User');
+const logger = require('../utils/logger');
 
 // @desc    Commandes du chef (dashboard)
 // @route   GET /api/orders/chef
@@ -31,7 +34,10 @@ exports.getChefOrders = async (req, res) => {
 
     res.json({ orders });
   } catch (error) {
-    console.error(error);
+    logger.error('Commande échouée (getChefOrders)', {
+      user: req.user ? req.user.id : null,
+      error: error.message
+    });
     res.status(500).json({ msg: 'Erreur serveur' });
   }
 };
@@ -65,7 +71,38 @@ exports.updateOrderStatus = async (req, res) => {
       order
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Commande échouée (updateOrderStatus)', {
+      user: req.user ? req.user.id : null,
+      orderId: req.params.id,
+      error: error.message
+    });
     res.status(500).json({ msg: 'Erreur serveur' });
+  }
+};
+
+// @desc    Lister MES commandes (client connecté)
+// @route   GET /api/orders/my
+// @access  Private (CLIENT)
+exports.getMyOrders = async (req, res) => {
+  if (req.user.role !== 'CLIENT') {
+    return res.status(403).json({ message: 'Accès réservé au Client.' });
+  }
+
+  try {
+    const orders = await Order.find({ userId: req.user.id || req.user._id })
+      .populate('chefId', 'name slug')
+      .populate('subscriptionId', 'formule statut')
+      .select('-__v');
+
+    res.status(200).json(orders);
+  } catch (error) {
+    logger.error('Commande échouée (getMyOrders)', {
+      user: req.user ? req.user.id : null,
+      error: error.message
+    });
+    res.status(500).json({
+      message: 'Erreur serveur lors de la récupération des commandes',
+      error: error.message
+    });
   }
 };

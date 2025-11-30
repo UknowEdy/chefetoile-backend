@@ -1,6 +1,27 @@
 const Menu = require('../models/Menu');
 const Chef = require('../models/Chef');
 
+// Helper: résout le chef cible selon le rôle et les paramètres
+const resolveChefProfile = async (req) => {
+  // Si CHEF connecté, toujours son propre profil
+  if (req.user.role === 'CHEF') {
+    return Chef.findOne({ userId: req.user.id || req.user._id });
+  }
+
+  // ADMIN / SUPER_ADMIN doivent préciser la cible (chefId ou chefSlug)
+  const chefId = req.query.chefId || req.body.chefId;
+  const chefSlug = req.query.chefSlug || req.body.chefSlug;
+
+  if (chefId) {
+    return Chef.findById(chefId);
+  }
+  if (chefSlug) {
+    return Chef.findOne({ slug: chefSlug });
+  }
+
+  return null;
+};
+
 // @desc    Créer un menu daté pour la semaine
 // @route   POST /api/menus
 // @access  Private (Rôle CHEF requis)
@@ -41,12 +62,12 @@ exports.createWeeklyMenu = async (req, res) => {
 
 // @desc    Récupérer le dernier menu actif du chef connecté
 // @route   GET /api/menus/my
-// @access  Private (Rôle CHEF requis)
+// @access  Private (CHEF ou ADMIN/SUPER_ADMIN avec chefId/chefSlug)
 exports.getMyMenu = async (req, res) => {
   try {
-    const chefProfile = await Chef.findOne({ userId: req.user.id || req.user._id });
+    const chefProfile = await resolveChefProfile(req);
     if (!chefProfile) {
-      return res.status(404).json({ message: 'Profil Chef non trouvé' });
+      return res.status(404).json({ message: 'Profil Chef non trouvé (précisez chefId/chefSlug pour admin).' });
     }
 
     const menu = await Menu.findOne({ chef: chefProfile._id, isActive: true })
@@ -63,17 +84,21 @@ exports.getMyMenu = async (req, res) => {
   }
 };
 
-// @desc    Mettre à jour le menu (par ID)
-// @route   PUT /api/menus/:id
-// @access  Private (Rôle CHEF requis)
+// @desc    Mettre à jour le menu du chef connecté
+// @route   PUT /api/menus/my
+// @access  Private (CHEF ou ADMIN/SUPER_ADMIN avec chefId/chefSlug)
 exports.updateMenu = async (req, res) => {
   try {
-    const menuId = req.params.id;
-    const updates = req.body;
+    const chefProfile = await resolveChefProfile(req);
+    if (!chefProfile) {
+      return res.status(404).json({ message: 'Profil Chef introuvable (précisez chefId/chefSlug pour admin).' });
+    }
+
+    const updates = req.body.menu || req.body.menuData || [];
 
     const menu = await Menu.findOneAndUpdate(
-      { _id: menuId },
-      { ...updates, lastUpdated: Date.now() },
+      { chef: chefProfile._id },
+      { menu: updates, lastUpdated: Date.now() },
       { new: true, runValidators: true }
     );
 

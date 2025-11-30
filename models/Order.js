@@ -48,4 +48,9 @@ const OrderSchema = new mongoose.Schema({
   }
 });
 
+// Index pour requêtes fréquentes
+OrderSchema.index({ chefId: 1, date: 1 });
+OrderSchema.index({ userId: 1, date: 1 });
+OrderSchema.index({ subscriptionId: 1 });
+
 module.exports = mongoose.model('Order', OrderSchema);
