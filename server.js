@@ -95,7 +95,7 @@ const loginLimiter = rateLimit({
   message: { message: 'Trop de tentatives de connexion. Réessaie bientôt.' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientIp
+  keyGenerator: (req) => req.ip
 });
 
 const apiLimiter = rateLimit({
@@ -104,7 +104,7 @@ const apiLimiter = rateLimit({
   message: { message: 'Trop de requêtes. Réessaie bientôt.' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientIp,
+  keyGenerator: (req) => req.ip,
   skip: (req) => req.path.startsWith('/auth/login')
 });
 
