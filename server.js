@@ -1,9 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const { ipKeyGenerator } = require('express-rate-limit');
 const logger = require('./utils/logger');
 
 // --- Import des routes ---
@@ -38,51 +36,30 @@ const connectDB = async () => {
   }
 };
 
-// Une seule exécution
 connectDB();
 
 // ------------------------------------------------------------
 // 🚀 Initialisation Express
 // ------------------------------------------------------------
 const app = express();
-app.get('/', (req, res) => { res.json({ status: 'API OK' }); });
-app.get('/', (req, res) => { res.json({ status: 'API OK' }); });
+app.use(require('cors')({   origin: "*",   methods: ["GET","POST","PUT","PATCH","DELETE"],   allowedHeaders: ["Content-Type","Authorization"] }));
 
-// Render / reverse proxy support
 app.set('trust proxy', true);
 
-// Obtenir l'IP réelle même derrière plusieurs proxies
+// IP réelle derrière proxy
 const getClientIp = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
   if (forwarded) return forwarded.split(',')[0].trim();
   return req.ip;
 };
 
+app.get('/', (req, res) => {
+  res.json({ status: 'API OK' });
+});
+
 // ------------------------------------------------------------
-// 🔐 CORS verrouillé
+// 📝 Body parser
 // ------------------------------------------------------------
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:3000',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'https://chefetoile-frontend.vercel.app'
-];
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Origine non autorisée par CORS'), false);
-  },
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  credentials: true
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-// Body parser
 app.use(express.json());
 
 // ------------------------------------------------------------
@@ -94,18 +71,14 @@ const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: { message: 'Trop de tentatives de connexion. Réessaie bientôt.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.ip
+  keyGenerator: (req) => getClientIp(req)
 });
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 5000 : 1000,
   message: { message: 'Trop de requêtes. Réessaie bientôt.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.ip,
+  keyGenerator: (req) => getClientIp(req),
   skip: (req) => req.path.startsWith('/auth/login')
 });
 
@@ -142,7 +115,7 @@ app.use((err, req, res, next) => {
 // 🚀 Démarrage du serveur
 // ------------------------------------------------------------
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   logger.info('Serveur démarré', {
     port: PORT,
     mode: process.env.NODE_ENV || 'development'
