@@ -18,7 +18,16 @@ const adminRoutes = require('./routes/adminRoutes');
 // ------------------------------------------------------------
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    // Prépare l'URI : priorité à MONGODB_URI, sinon compose depuis MONGO_URL (Railway)
+    const mongoUri =
+      process.env.MONGODB_URI ||
+      (process.env.MONGO_URL ? `${process.env.MONGO_URL}/chefetoile?authSource=admin` : null);
+
+    if (!mongoUri) {
+      throw new Error('Aucune URI MongoDB trouvée (MONGODB_URI ou MONGO_URL manquant)');
+    }
+
+    const conn = await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -114,7 +123,8 @@ app.use((err, req, res, next) => {
 // ------------------------------------------------------------
 // 🚀 Démarrage du serveur
 // ------------------------------------------------------------
-const PORT = process.env.PORT || 3001;
+// Utilise le port injecté par Railway/Render si présent, sinon 8080 par défaut
+const PORT = process.env.PORT || process.env.RAILWAY_PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => {
   logger.info('Serveur démarré', {
     port: PORT,

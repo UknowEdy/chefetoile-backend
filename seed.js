@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config();
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const User = require('./models/User');
@@ -7,143 +7,211 @@ const Menu = require('./models/Menu');
 const Subscription = require('./models/Subscription');
 const Order = require('./models/Order');
 
-const seedDatabase = async () => {
+// Helpers
+const startOfCurrentWeek = () => {
+  const now = new Date();
+  const start = new Date(now);
+  // Lundi = 0
+  start.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start, end };
+};
+
+const baseMenuEntries = [
+  { day: 'Lundi', midi: 'Riz sauce arachide', soir: 'Attiéké poisson' },
+  { day: 'Mardi', midi: 'Pâtes sauce tomate', soir: 'Riz gras' },
+  { day: 'Mercredi', midi: 'Fufu sauce gombo', soir: 'Banku poisson' },
+  { day: 'Jeudi', midi: 'Riz sauce tomate', soir: 'Attiéké poulet' },
+  { day: 'Vendredi', midi: 'Couscous', soir: 'Riz sauce arachide' },
+  { day: 'Samedi', midi: '', soir: '' },
+  { day: 'Dimanche', midi: '', soir: '' }
+];
+
+const seed = async () => {
   try {
     await connectDB();
 
-    console.log('🗑️  Nettoyage de la base de données...');
-    await User.deleteMany({});
-    await Chef.deleteMany({});
-    await Menu.deleteMany({});
-    await Subscription.deleteMany({});
-    await Order.deleteMany({});
+    console.log('🗑️  Nettoyage des collections...');
+    await Promise.all([
+      User.deleteMany({}),
+      Chef.deleteMany({}),
+      Menu.deleteMany({}),
+      Subscription.deleteMany({}),
+      Order.deleteMany({})
+    ]);
 
-    // Créer Super Admin
-    console.log('👤 Création du Super Admin...');
+    // Utilisateurs
+    console.log('👤 Création des comptes...');
     const superAdmin = await User.create({
-      email: 'admin@chefetoile.com',
-      password: 'admin123',
-      nom: 'Admin',
-      prenom: 'Chef★',
-      telephone: '+228 90 00 00 00',
+      email: 'superadmin@chefetoile.com',
+      password: 'superadmin123',
+      nom: 'SUPER',
+      prenom: 'Admin',
+      telephone: '+33612345678',
       role: 'SUPER_ADMIN'
     });
 
-    // Créer des Chefs
-    console.log('👨‍🍳 Création des Chefs...');
-    const chefsData = [
-      { name: 'Chef Kodjo', slug: 'kodjo', email: 'kodjo@chefetoile.com', phone: '+228 90 12 34 56', quartier: 'Tokoin' },
-      { name: 'Chef Anna', slug: 'anna', email: 'anna@chefetoile.com', phone: '+228 90 23 45 67', quartier: 'Bè' },
-      { name: 'Chef Gloria', slug: 'gloria', email: 'gloria@chefetoile.com', phone: '+228 90 34 56 78', quartier: 'Hèdzranawoé' }
+    const admin = await User.create({
+      email: 'admin@chefetoile.com',
+      password: 'admin123',
+      nom: 'ADMIN',
+      prenom: 'Principal',
+      telephone: '+33612345679',
+      role: 'ADMIN'
+    });
+
+    const chefProfiles = [
+      { prenom: 'Marco', nom: 'Rossi', slug: 'marco-rossi' },
+      { prenom: 'Giovanni', nom: 'Bianchi', slug: 'giovanni-bianchi' },
+      { prenom: 'Sofia', nom: 'Verdi', slug: 'sofia-verdi' },
+      { prenom: 'Lorenzo', nom: 'Neri', slug: 'lorenzo-neri' },
+      { prenom: 'Giulia', nom: 'Marini', slug: 'giulia-marini' }
     ];
 
     const chefs = [];
-    for (const chefData of chefsData) {
-      const user = await User.create({
-        email: chefData.email,
-        password: 'chef123',
-        nom: chefData.name.split(' ')[1],
-        prenom: 'Chef',
-        telephone: chefData.phone,
+    for (let i = 0; i < chefProfiles.length; i++) {
+      const profile = chefProfiles[i];
+      const chefUser = await User.create({
+        email: `chef${i + 1}@chefetoile.com`,
+        password: `chef${i + 1}123`,
+        nom: profile.nom.toUpperCase(),
+        prenom: profile.prenom,
+        telephone: `+3361234567${i}`,
         role: 'CHEF'
       });
 
       const chef = await Chef.create({
-        userId: user._id,
-        name: chefData.name,
-        slug: chefData.slug,
-        phone: chefData.phone,
-        email: chefData.email,
-        quartier: chefData.quartier,
-        address: `Rue 123, ${chefData.quartier}, Lomé`,
-        location: {
-          latitude: 6.1 + Math.random() * 0.1,
-          longitude: 1.2 + Math.random() * 0.1
+        userId: chefUser._id,
+        name: `${profile.prenom} ${profile.nom}`,
+        slug: profile.slug,
+        phone: chefUser.telephone,
+        email: chefUser.email,
+        quartier: 'Centre-ville',
+        address: 'Adresse test',
+        location: { latitude: 6.16 + Math.random() * 0.05, longitude: 1.21 + Math.random() * 0.05 },
+        settings: {
+          prixMidi: 7500,
+          prixSoir: 7500,
+          prixComplet: 14000
         }
       });
-
       chefs.push(chef);
     }
 
-    // Créer des menus pour chaque chef
+    const { start: startDate, end: endDate } = startOfCurrentWeek();
+
+    // Menus
     console.log('📋 Création des menus...');
+    const menusByChef = new Map();
     for (const chef of chefs) {
-      await Menu.create({
+      const menuDocs = baseMenuEntries.map((item, idx) => {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + idx);
+        return { ...item, date };
+      });
+
+      const menu = await Menu.create({
         chef: chef._id,
-        weekId: '2024-W48',
-        menu: [
-          { day: 'Lundi', midi: 'Riz sauce arachide', soir: 'Attiéké poisson' },
-          { day: 'Mardi', midi: 'Pâtes sauce tomate', soir: 'Riz gras' },
-          { day: 'Mercredi', midi: 'Fufu sauce gombo', soir: 'Banku poisson' },
-          { day: 'Jeudi', midi: 'Riz sauce tomate', soir: 'Attiéké poulet' },
-          { day: 'Vendredi', midi: 'Couscous', soir: 'Riz sauce arachide' },
-          { day: 'Samedi', midi: '', soir: '' },
-          { day: 'Dimanche', midi: '', soir: '' }
-        ],
+        startDate,
+        endDate,
+        menu: menuDocs,
         lastUpdated: new Date()
       });
+      menusByChef.set(chef._id.toString(), menu);
     }
 
-    // Créer des clients
+    // Clients
     console.log('👥 Création des clients...');
+    const clientNames = ['Alice', 'Bob', 'Carol', 'David', 'Eva', 'Frank', 'Grace', 'Henry', 'Iris', 'Jack'];
     const clients = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 0; i < clientNames.length; i++) {
       const client = await User.create({
-        email: `client${i}@test.com`,
-        password: 'client123',
-        nom: `Client${i}`,
-        prenom: `Test`,
-        telephone: `+228 90 11 22 ${i}${i}`,
+        email: `client${i + 1}@chefetoile.com`,
+        password: `client${i + 1}123`,
+        nom: clientNames[i].toUpperCase(),
+        prenom: clientNames[i],
+        telephone: `+3361200000${i}`,
         role: 'CLIENT',
         pickupPoint: {
-          latitude: 6.1 + Math.random() * 0.1,
-          longitude: 1.2 + Math.random() * 0.1,
-          address: `Adresse test ${i}, Lomé`,
+          latitude: 6.15 + Math.random() * 0.05,
+          longitude: 1.22 + Math.random() * 0.05,
+          address: `Adresse client ${i + 1}`,
           updatedAt: new Date()
         }
       });
       clients.push(client);
     }
 
-    // Créer des abonnements
-    console.log('📝 Création des abonnements...');
-    const today = new Date();
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-
+    // Abonnements + commandes
+    console.log('📝 Création des abonnements et commandes...');
+    const subscriptions = [];
     for (const client of clients) {
       const chef = chefs[Math.floor(Math.random() * chefs.length)];
-      await Subscription.create({
+      const menu = menusByChef.get(chef._id.toString());
+      if (!menu) {
+        throw new Error(`Menu introuvable pour le chef ${chef._id}`);
+      }
+
+      const sub = await Subscription.create({
         user: client._id,
         chef: chef._id,
+        menu: menu._id,
         formule: ['MIDI', 'SOIR', 'COMPLET'][Math.floor(Math.random() * 3)],
-        type: 'HEBDO',
         prixTotal: 14000,
-        dateDebut: today,
-        dateFin: nextWeek,
+        dateDebut: startDate,
+        dateFin: endDate,
         statut: 'ACTIVE'
       });
+      subscriptions.push(sub);
+
+      // Génère une commande par jour servi midi/soir
+      for (const entry of menu.menu) {
+        if (entry.midi) {
+          await Order.create({
+            subscriptionId: sub._id,
+            userId: client._id,
+            chefId: chef._id,
+            date: entry.date,
+            moment: 'MIDI',
+            repas: entry.midi,
+            deliveryPoint: client.pickupPoint,
+            statut: 'DELIVERED'
+          });
+        }
+        if (entry.soir) {
+          await Order.create({
+            subscriptionId: sub._id,
+            userId: client._id,
+            chefId: chef._id,
+            date: entry.date,
+            moment: 'SOIR',
+            repas: entry.soir,
+            deliveryPoint: client.pickupPoint,
+            statut: 'DELIVERED'
+          });
+        }
+      }
     }
 
-    console.log('✅ Base de données peuplée avec succès !');
-    console.log('\n📊 Résumé:');
-    console.log(`  - 1 Super Admin (admin@chefetoile.com / admin123)`);
-    console.log(`  - ${chefs.length} Chefs (email@chefetoile.com / chef123)`);
-    console.log(`  - ${clients.length} Clients (clientX@test.com / client123)`);
-    console.log(`  - ${chefs.length} Menus`);
-    console.log(`  - ${clients.length} Abonnements`);
-    console.log('\n🔐 Comptes de test:');
-    console.log('  Super Admin: admin@chefetoile.com / admin123');
-    console.log('  Chef Kodjo: kodjo@chefetoile.com / chef123');
-    console.log('  Chef Anna: anna@chefetoile.com / chef123');
-    console.log('  Chef Gloria: gloria@chefetoile.com / chef123');
-    console.log('  Client: client1@test.com / client123');
+    console.log('\n' + '='.repeat(60));
+    console.log('🎉 SEED COMPLÉTÉ AVEC SUCCÈS!');
+    console.log('='.repeat(60));
+    console.log('\nComptes :');
+    console.log('- Super Admin : superadmin@chefetoile.com / superadmin123');
+    console.log('- Admin       : admin@chefetoile.com / admin123');
+    console.log('- Chefs (1..5): chefX@chefetoile.com / chefX123');
+    console.log('- Clients     : clientX@chefetoile.com / clientX123');
+    console.log('Abonnements  :', subscriptions.length);
+    console.log('Commandes    : générées pour chaque repas prévu');
 
+    await mongoose.connection.close();
     process.exit(0);
-  } catch (error) {
-    console.error('❌ Erreur:', error);
+  } catch (err) {
+    console.error('❌ Erreur de seed :', err.message);
     process.exit(1);
   }
 };
 
-seedDatabase();
+seed();
