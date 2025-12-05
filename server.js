@@ -2,10 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 const logger = require('./utils/logger');
 
 // --- Import des routes ---
 const authRoutes = require('./routes/authRoutes');
+const socialAuthRoutes = require('./routes/socialAuthRoutes');
 const chefRoutes = require('./routes/chefRoutes');
 const menuRoutes = require('./routes/menuRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
@@ -69,7 +71,9 @@ app.get('/', (req, res) => {
 // ------------------------------------------------------------
 // 📝 Body parser
 // ------------------------------------------------------------
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(cookieParser(process.env.COOKIE_SECRET || 'chefetoile_cookie_secret'));
 
 // ------------------------------------------------------------
 // 🛡️ Rate limiting
@@ -97,6 +101,7 @@ if (!isDev) app.use('/api', apiLimiter);
 // ------------------------------------------------------------
 // 📦 Routes principales
 // ------------------------------------------------------------
+app.use('/auth', socialAuthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chefs', chefRoutes);
 app.use('/api/menus', menuRoutes);

@@ -16,6 +16,16 @@ npm install
    - `MONGODB_URI` : URI de connexion MongoDB
    - `JWT_SECRET` : Clé secrète pour JWT
    - `PORT` : Port du serveur (défaut: 3001)
+   - `FRONTEND_URL` : URL de l'UI (ex: http://localhost:5173)
+   - `BACKEND_URL` : URL publique du backend (ex: http://localhost:8080)
+   - `FRONTEND_AUTH_CALLBACK` : page frontend qui gère le callback social (par défaut `/auth/callback`)
+   - `COOKIE_SECRET`, `SESSION_COOKIE_NAME` : sécurité cookies pour le JWT httpOnly
+
+3. OAuth2 / OpenID Connect (ajouter dans `.env`):
+   - Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+   - Facebook: `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_REDIRECT_URI`
+   - Apple: `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_REDIRECT_URI`
+   - GitHub: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI`
 
 ## 🏃 Démarrage
 
@@ -37,6 +47,16 @@ npm run seed
 - `POST /login` - Connexion
 - `GET /me` - Profil utilisateur (🔒)
 - `PUT /pickup-point` - Point de retrait GPS (🔒)
+
+### Social OAuth (`/auth`)
+- `GET /google` → redirection Google
+- `GET /google/callback` → callback Google
+- `GET /facebook` → redirection Facebook
+- `GET /facebook/callback` → callback Facebook
+- `GET /apple` → redirection Apple (OIDC + PKCE)
+- `ALL /apple/callback` → callback Apple
+- `GET /github` → redirection GitHub
+- `GET /github/callback` → callback GitHub
 
 ### Chefs (`/api/chefs`)
 - `GET /` - Liste des chefs actifs

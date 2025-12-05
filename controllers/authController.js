@@ -1,14 +1,8 @@
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Chef = require('../models/Chef');
 const { generateMatricule } = require('../utils/codeGenerator');
-
-const generateToken = (id) => {
-  return jwt.sign({ userId: id }, process.env.JWT_SECRET || 'chefetoile_jwt_secret_dev_2024', {
-    expiresIn: process.env.JWT_EXPIRE || '30d'
-  });
-};
+const { generateAccessToken, attachSessionCookie } = require('../utils/token');
 
 exports.register = async (req, res) => {
   try {
@@ -30,6 +24,7 @@ exports.register = async (req, res) => {
     const user = await User.create({
       nom: name,
       prenom: name,
+      name,
       email,
       password,
       telephone: phone,
@@ -49,13 +44,16 @@ exports.register = async (req, res) => {
       });
     }
 
+    const token = generateAccessToken(user.id);
+    attachSessionCookie(res, token);
+
     res.status(201).json({
       _id: user.id,
       matricule: user.matricule,
       name: user.nom,
       email: user.email,
       role: user.role,
-      token: generateToken(user.id)
+      token
     });
   } catch (error) {
     console.error(error);
@@ -69,6 +67,10 @@ exports.login = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ message: 'Email ou mot de passe incorrect' });
 
+    if (!user.password) {
+      return res.status(400).json({ message: 'Ce compte a été créé via un login social. Utilisez Google/Facebook/Apple/GitHub.' });
+    }
+
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(401).json({ message: 'Email ou mot de passe incorrect' });
 
@@ -81,13 +83,16 @@ exports.login = async (req, res) => {
       chefSlug = chefProfile?.slug || null;
     }
 
+    const token = generateAccessToken(user.id);
+    attachSessionCookie(res, token);
+
     res.json({
       _id: user.id,
       name: `${user.prenom} ${user.nom}`.trim(),
       email: user.email,
       role: user.role,
       chefSlug,
-      token: generateToken(user.id)
+      token
     });
   } catch (error) {
     console.error(error);
