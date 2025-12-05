@@ -7,9 +7,9 @@ const logger = require('../utils/logger');
 const { generateAccessToken, attachSessionCookie } = require('../utils/token');
 
 const SECURE_COOKIE = process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production';
-const FRONTEND_URL = (process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+const DEFAULT_FRONTEND_URL = (process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
 const FRONTEND_CALLBACK_PATH = process.env.FRONTEND_AUTH_CALLBACK || '/auth/callback';
-const BACKEND_BASE_URL = (
+const DEFAULT_BACKEND_BASE_URL = (
   process.env.BACKEND_URL ||
   `http://localhost:${process.env.PORT || process.env.RAILWAY_PORT || 8080}`
 ).replace(/\/$/, '');
@@ -22,8 +22,35 @@ const cookieConfig = {
   maxAge: 10 * 60 * 1000, // 10 min
 };
 
-const setFlowCookie = (res, provider, payload) => {
-  res.cookie(`oauth_${provider}`, JSON.stringify(payload), cookieConfig);
+const getRequestBaseUrl = (req) => {
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0];
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  if (!host) return null;
+  return `${proto}://${host}`;
+};
+
+const resolveBackendBase = (req) => {
+  const base = process.env.BACKEND_URL || getRequestBaseUrl(req) || DEFAULT_BACKEND_BASE_URL;
+  return (base || DEFAULT_BACKEND_BASE_URL).replace(/\/$/, '');
+};
+
+const resolveFrontendBase = (req, stored) => {
+  const base =
+    stored?.frontendBase ||
+    req.headers.origin ||
+    process.env.FRONTEND_URL ||
+    process.env.CLIENT_URL ||
+    DEFAULT_FRONTEND_URL;
+  return (base || DEFAULT_FRONTEND_URL).replace(/\/$/, '');
+};
+
+const setFlowCookie = (req, res, provider, payload) => {
+  const frontendBase = resolveFrontendBase(req, payload);
+  res.cookie(
+    `oauth_${provider}`,
+    JSON.stringify({ ...payload, frontendBase }),
+    cookieConfig
+  );
 };
 
 const readFlowCookie = (req, provider) => {
@@ -42,18 +69,25 @@ const clearFlowCookie = (res, provider) => {
   res.clearCookie(`oauth_${provider}`, { ...cookieConfig, maxAge: 0 });
 };
 
-const getRedirectUri = (provider) => {
+const getRedirectUri = (req, provider) => {
   const envKey = `${provider.toUpperCase()}_REDIRECT_URI`;
-  return (process.env[envKey] || `${BACKEND_BASE_URL}/auth/${provider}/callback`).replace(/\/$/, '');
+  const backendBase = resolveBackendBase(req);
+  return (process.env[envKey] || `${backendBase}/auth/${provider}/callback`).replace(/\/$/, '');
 };
 
-const buildSuccessRedirect = (token, provider, isNewUser) =>
-  `${FRONTEND_URL}${FRONTEND_CALLBACK_PATH}?token=${encodeURIComponent(token)}&provider=${provider}&newUser=${
+const buildSuccessRedirect = (req, token, provider, isNewUser, stored) => {
+  const frontendBase = resolveFrontendBase(req, stored);
+  return `${frontendBase}${FRONTEND_CALLBACK_PATH}?token=${encodeURIComponent(token)}&provider=${provider}&newUser=${
     isNewUser ? '1' : '0'
   }`;
+};
 
-const buildErrorRedirect = (message, provider) =>
-  `${FRONTEND_URL}${FRONTEND_CALLBACK_PATH}?error=${encodeURIComponent(message)}${provider ? `&provider=${provider}` : ''}`;
+const buildErrorRedirect = (req, message, provider, stored) => {
+  const frontendBase = resolveFrontendBase(req, stored);
+  return `${frontendBase}${FRONTEND_CALLBACK_PATH}?error=${encodeURIComponent(message)}${
+    provider ? `&provider=${provider}` : ''
+  }`;
+};
 
 const splitName = (name = '') => {
   const parts = name.trim().split(' ').filter(Boolean);
@@ -111,17 +145,14 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, picture }) =
   return { user, isNew };
 };
 
-let googleClient;
-const getGoogleClient = async () => {
-  if (googleClient) return googleClient;
+const getGoogleClient = async (redirectUri) => {
   const googleIssuer = await Issuer.discover('https://accounts.google.com');
-  googleClient = new googleIssuer.Client({
+  return new googleIssuer.Client({
     client_id: process.env.GOOGLE_CLIENT_ID,
     client_secret: process.env.GOOGLE_CLIENT_SECRET,
-    redirect_uris: [getRedirectUri('google')],
+    redirect_uris: [redirectUri],
     response_types: ['code'],
   });
-  return googleClient;
 };
 
 const generateAppleClientSecret = () => {
@@ -144,25 +175,26 @@ const generateAppleClientSecret = () => {
   );
 };
 
-const getAppleClient = async () => {
+const getAppleClient = async (redirectUri) => {
   const appleIssuer = await Issuer.discover('https://appleid.apple.com');
   return new appleIssuer.Client({
     client_id: process.env.APPLE_CLIENT_ID,
     client_secret: generateAppleClientSecret(),
-    redirect_uris: [getRedirectUri('apple')],
+    redirect_uris: [redirectUri],
     response_types: ['code'],
   });
 };
 
 exports.startGoogle = async (req, res) => {
   try {
-    const client = await getGoogleClient();
+    const redirectUri = getRedirectUri(req, 'google');
+    const client = await getGoogleClient(redirectUri);
     const state = generators.state();
     const nonce = generators.nonce();
     const codeVerifier = generators.codeVerifier();
     const codeChallenge = generators.codeChallenge(codeVerifier);
 
-    setFlowCookie(res, 'google', { state, nonce, codeVerifier, createdAt: Date.now() });
+    setFlowCookie(req, res, 'google', { state, nonce, codeVerifier, createdAt: Date.now() });
 
     const authorizationUrl = client.authorizationUrl({
       scope: 'openid email profile',
@@ -172,13 +204,13 @@ exports.startGoogle = async (req, res) => {
       prompt: 'consent',
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
-      redirect_uri: getRedirectUri('google'),
+      redirect_uri: redirectUri,
     });
 
     return res.redirect(authorizationUrl);
   } catch (error) {
     logger.error('Erreur start Google OAuth', { error: error.message });
-    return res.redirect(buildErrorRedirect('OAuth Google indisponible', 'google'));
+    return res.redirect(buildErrorRedirect(req, 'OAuth Google indisponible', 'google'));
   }
 };
 
@@ -191,9 +223,10 @@ exports.googleCallback = async (req, res) => {
   }
 
   try {
-    const client = await getGoogleClient();
+    const redirectUri = getRedirectUri(req, 'google');
+    const client = await getGoogleClient(redirectUri);
     const params = client.callbackParams(req);
-    const tokenSet = await client.callback(getRedirectUri('google'), params, {
+    const tokenSet = await client.callback(redirectUri, params, {
       state: stored.state,
       nonce: stored.nonce,
       code_verifier: stored.codeVerifier,
@@ -211,19 +244,19 @@ exports.googleCallback = async (req, res) => {
     const token = generateAccessToken(user.id);
     attachSessionCookie(res, token);
 
-    return res.redirect(buildSuccessRedirect(token, 'google', isNew));
+    return res.redirect(buildSuccessRedirect(req, token, 'google', isNew, stored));
   } catch (error) {
     logger.error('Erreur callback Google OAuth', { error: error.message });
-    return res.redirect(buildErrorRedirect('Connexion Google impossible', 'google'));
+    return res.redirect(buildErrorRedirect(req, 'Connexion Google impossible', 'google', stored));
   }
 };
 
 exports.startFacebook = async (req, res) => {
   try {
     const state = crypto.randomBytes(24).toString('hex');
-    setFlowCookie(res, 'facebook', { state, createdAt: Date.now() });
+    setFlowCookie(req, res, 'facebook', { state, createdAt: Date.now() });
 
-    const redirectUri = getRedirectUri('facebook');
+    const redirectUri = getRedirectUri(req, 'facebook');
     const facebookUrl =
       'https://www.facebook.com/v19.0/dialog/oauth?' +
       new URLSearchParams({
@@ -237,7 +270,7 @@ exports.startFacebook = async (req, res) => {
     return res.redirect(facebookUrl);
   } catch (error) {
     logger.error('Erreur start Facebook OAuth', { error: error.message });
-    return res.redirect(buildErrorRedirect('OAuth Facebook indisponible', 'facebook'));
+    return res.redirect(buildErrorRedirect(req, 'OAuth Facebook indisponible', 'facebook'));
   }
 };
 
@@ -251,7 +284,7 @@ exports.facebookCallback = async (req, res) => {
 
   try {
     const { code } = req.query;
-    const redirectUri = getRedirectUri('facebook');
+    const redirectUri = getRedirectUri(req, 'facebook');
     const tokenResponse = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
       params: {
         client_id: process.env.FACEBOOK_APP_ID,
@@ -284,10 +317,10 @@ exports.facebookCallback = async (req, res) => {
     const token = generateAccessToken(user.id);
     attachSessionCookie(res, token);
 
-    return res.redirect(buildSuccessRedirect(token, 'facebook', isNew));
+    return res.redirect(buildSuccessRedirect(req, token, 'facebook', isNew, stored));
   } catch (error) {
     logger.error('Erreur callback Facebook OAuth', { error: error.response?.data || error.message });
-    return res.redirect(buildErrorRedirect('Connexion Facebook impossible', 'facebook'));
+    return res.redirect(buildErrorRedirect(req, 'Connexion Facebook impossible', 'facebook', stored));
   }
 };
 
@@ -297,9 +330,9 @@ exports.startGithub = async (req, res) => {
     const codeVerifier = generators.codeVerifier();
     const codeChallenge = generators.codeChallenge(codeVerifier);
 
-    setFlowCookie(res, 'github', { state, codeVerifier, createdAt: Date.now() });
+    setFlowCookie(req, res, 'github', { state, codeVerifier, createdAt: Date.now() });
 
-    const redirectUri = getRedirectUri('github');
+    const redirectUri = getRedirectUri(req, 'github');
     const githubUrl =
       'https://github.com/login/oauth/authorize?' +
       new URLSearchParams({
@@ -314,7 +347,7 @@ exports.startGithub = async (req, res) => {
     return res.redirect(githubUrl);
   } catch (error) {
     logger.error('Erreur start GitHub OAuth', { error: error.message });
-    return res.redirect(buildErrorRedirect('OAuth GitHub indisponible', 'github'));
+    return res.redirect(buildErrorRedirect(req, 'OAuth GitHub indisponible', 'github'));
   }
 };
 
@@ -327,7 +360,7 @@ exports.githubCallback = async (req, res) => {
   }
 
   try {
-    const redirectUri = getRedirectUri('github');
+    const redirectUri = getRedirectUri(req, 'github');
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -370,22 +403,23 @@ exports.githubCallback = async (req, res) => {
     const token = generateAccessToken(user.id);
     attachSessionCookie(res, token);
 
-    return res.redirect(buildSuccessRedirect(token, 'github', isNew));
+    return res.redirect(buildSuccessRedirect(req, token, 'github', isNew, stored));
   } catch (error) {
     logger.error('Erreur callback GitHub OAuth', { error: error.response?.data || error.message });
-    return res.redirect(buildErrorRedirect('Connexion GitHub impossible', 'github'));
+    return res.redirect(buildErrorRedirect(req, 'Connexion GitHub impossible', 'github', stored));
   }
 };
 
 exports.startApple = async (req, res) => {
   try {
-    const client = await getAppleClient();
+    const redirectUri = getRedirectUri(req, 'apple');
+    const client = await getAppleClient(redirectUri);
     const state = generators.state();
     const nonce = generators.nonce();
     const codeVerifier = generators.codeVerifier();
     const codeChallenge = generators.codeChallenge(codeVerifier);
 
-    setFlowCookie(res, 'apple', { state, nonce, codeVerifier, createdAt: Date.now() });
+    setFlowCookie(req, res, 'apple', { state, nonce, codeVerifier, createdAt: Date.now() });
 
     const authorizationUrl = client.authorizationUrl({
       scope: 'openid email name',
@@ -394,13 +428,13 @@ exports.startApple = async (req, res) => {
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
       response_mode: 'form_post',
-      redirect_uri: getRedirectUri('apple'),
+      redirect_uri: redirectUri,
     });
 
     return res.redirect(authorizationUrl);
   } catch (error) {
     logger.error('Erreur start Apple OAuth', { error: error.message });
-    return res.redirect(buildErrorRedirect('OAuth Apple indisponible', 'apple'));
+    return res.redirect(buildErrorRedirect(req, 'OAuth Apple indisponible', 'apple'));
   }
 };
 
@@ -413,10 +447,11 @@ exports.appleCallback = async (req, res) => {
   }
 
   try {
-    const client = await getAppleClient();
+    const redirectUri = getRedirectUri(req, 'apple');
+    const client = await getAppleClient(redirectUri);
     const params = client.callbackParams(req);
 
-    const tokenSet = await client.callback(getRedirectUri('apple'), params, {
+    const tokenSet = await client.callback(redirectUri, params, {
       state: stored.state,
       nonce: stored.nonce,
       code_verifier: stored.codeVerifier,
@@ -447,9 +482,9 @@ exports.appleCallback = async (req, res) => {
     const token = generateAccessToken(user.id);
     attachSessionCookie(res, token);
 
-    return res.redirect(buildSuccessRedirect(token, 'apple', isNew));
+    return res.redirect(buildSuccessRedirect(req, token, 'apple', isNew, stored));
   } catch (error) {
     logger.error('Erreur callback Apple OAuth', { error: error.response?.data || error.message });
-    return res.redirect(buildErrorRedirect('Connexion Apple impossible', 'apple'));
+    return res.redirect(buildErrorRedirect(req, 'Connexion Apple impossible', 'apple', stored));
   }
 };
