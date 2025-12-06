@@ -371,7 +371,8 @@ async function createSubscriptions(clients, chefs, menus) {
 // -------------------------------------------------
 async function createOrders(subs, clients, chefs) {
   const moments = ["MIDI", "SOIR"];
-  const statuts = ["PREPAREE", "EN_ROUTE", "DELIVERED", "DELIVERED", "DELIVERED"];
+  // Respecte l'enum du modèle Order: ['PENDING','PREPARING','READY','DELIVERING','DELIVERED','CANCELLED']
+  const statuts = ["PREPARING", "DELIVERING", "DELIVERED", "DELIVERED", "PENDING", "READY"];
   const repasExemples = [
     "Riz gras poulet", "Foufou sauce arachide", "Attieké poisson",
     "Pasta carbonara", "Paella", "Burger frites", "Thiéboudienne",
