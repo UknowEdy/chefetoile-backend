@@ -1,7 +1,16 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
-const { Issuer, generators } = require('openid-client');
+// Chargement robuste d'openid-client (évite les undefined en prod si le module est mal résolu)
+let Issuer;
+let generators;
+try {
+  const openid = require('openid-client');
+  Issuer = openid.Issuer || openid.default?.Issuer;
+  generators = openid.generators || openid.default?.generators;
+} catch (err) {
+  console.error('openid-client introuvable', err);
+}
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const { generateAccessToken, attachSessionCookie } = require('../utils/token');
@@ -153,6 +162,9 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, picture }) =
 };
 
 const getGoogleClient = async (redirectUri) => {
+  if (!Issuer?.discover) {
+    throw new Error('Lib openid-client non chargée (Issuer indisponible)');
+  }
   const googleIssuer = await Issuer.discover('https://accounts.google.com');
   return new googleIssuer.Client({
     client_id: process.env.GOOGLE_CLIENT_ID,
@@ -183,6 +195,9 @@ const generateAppleClientSecret = () => {
 };
 
 const getAppleClient = async (redirectUri) => {
+  if (!Issuer?.discover) {
+    throw new Error('Lib openid-client non chargée (Issuer indisponible)');
+  }
   const appleIssuer = await Issuer.discover('https://appleid.apple.com');
   return new appleIssuer.Client({
     client_id: process.env.APPLE_CLIENT_ID,
