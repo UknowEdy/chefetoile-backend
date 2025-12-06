@@ -131,7 +131,7 @@ exports.requestPasswordReset = async (req, res) => {
   user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1h
   await user.save({ validateBeforeSave: false });
 
-  const resetUrl = `${(process.env.FRONTEND_URL || '').replace(/\\/$/, '')}/reset-password?token=${resetToken}`;
+  const resetUrl = `${(process.env.FRONTEND_URL || '').replace(/\/$/, '')}/reset-password?token=${resetToken}`;
 
   try {
     if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
