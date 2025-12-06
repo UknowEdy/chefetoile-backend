@@ -2,7 +2,11 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'chefetoile_jwt_secret_dev_2024';
 const JWT_EXPIRE = process.env.JWT_EXPIRE || '30d';
-const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'chefetoile_session';
+const rawCookieName = process.env.SESSION_COOKIE_NAME || 'chefetoile_session';
+// Nom de cookie valide : lettres/chiffres/_-. Sinon fallback.
+const SESSION_COOKIE_NAME = /^[A-Za-z0-9_.-]+$/.test(rawCookieName)
+  ? rawCookieName
+  : 'chefetoile_session';
 
 const isSecureCookie = () =>
   process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production';
