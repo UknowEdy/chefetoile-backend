@@ -30,10 +30,7 @@ const connectDB = async () => {
       throw new Error('Aucune URI MongoDB trouvée (MONGODB_URI ou MONGO_URL manquant)');
     }
 
-    const conn = await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(mongoUri);
 
     logger.info('✅ MongoDB connecté avec succès', {
       host: conn.connection.host,
