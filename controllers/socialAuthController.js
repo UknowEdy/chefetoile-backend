@@ -1,16 +1,22 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
-// Chargement robuste d'openid-client (évite les undefined en prod si le module est mal résolu)
-let Issuer;
-let generators;
-try {
-  const openid = require('openid-client');
-  Issuer = openid.Issuer || openid.default?.Issuer;
-  generators = openid.generators || openid.default?.generators;
-} catch (err) {
-  console.error('openid-client introuvable', err);
-}
+// Chargement dynamique d'openid-client (ESM) pour éviter Issuer undefined en prod
+let openIdLib = null;
+const loadOpenId = async () => {
+  if (openIdLib) return openIdLib;
+  try {
+    const mod = await import('openid-client');
+    openIdLib = {
+      Issuer: mod.Issuer || mod.default?.Issuer,
+      generators: mod.generators || mod.default?.generators,
+    };
+  } catch (err) {
+    logger.error('openid-client introuvable', { error: err.message });
+    openIdLib = {};
+  }
+  return openIdLib;
+};
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const { generateAccessToken, attachSessionCookie } = require('../utils/token');
@@ -162,6 +168,7 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, picture }) =
 };
 
 const getGoogleClient = async (redirectUri) => {
+  const { Issuer } = await loadOpenId();
   if (!Issuer?.discover) {
     throw new Error('Lib openid-client non chargée (Issuer indisponible)');
   }
@@ -195,6 +202,7 @@ const generateAppleClientSecret = () => {
 };
 
 const getAppleClient = async (redirectUri) => {
+  const { Issuer } = await loadOpenId();
   if (!Issuer?.discover) {
     throw new Error('Lib openid-client non chargée (Issuer indisponible)');
   }
@@ -209,6 +217,9 @@ const getAppleClient = async (redirectUri) => {
 
 exports.startGoogle = async (req, res) => {
   try {
+    const { generators } = await loadOpenId();
+    if (!generators) throw new Error('Lib openid-client non chargée (generators indisponible)');
+
     const redirectUri = getRedirectUri(req, 'google');
     const client = await getGoogleClient(redirectUri);
     const state = generators.state();
@@ -348,6 +359,9 @@ exports.facebookCallback = async (req, res) => {
 
 exports.startGithub = async (req, res) => {
   try {
+    const { generators } = await loadOpenId();
+    if (!generators) throw new Error('Lib openid-client non chargée (generators indisponible)');
+
     const state = crypto.randomBytes(24).toString('hex');
     const codeVerifier = generators.codeVerifier();
     const codeChallenge = generators.codeChallenge(codeVerifier);
@@ -434,6 +448,9 @@ exports.githubCallback = async (req, res) => {
 
 exports.startApple = async (req, res) => {
   try {
+    const { generators } = await loadOpenId();
+    if (!generators) throw new Error('Lib openid-client non chargée (generators indisponible)');
+
     const redirectUri = getRedirectUri(req, 'apple');
     const client = await getAppleClient(redirectUri);
     const state = generators.state();
