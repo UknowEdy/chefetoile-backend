@@ -20,6 +20,7 @@ npm install
    - `BACKEND_URL` : URL publique du backend (ex: http://localhost:8080)
    - `FRONTEND_AUTH_CALLBACK` : page frontend qui gère le callback social (par défaut `/login`)
    - `COOKIE_SECRET`, `SESSION_COOKIE_NAME` : sécurité cookies pour le JWT httpOnly
+   - SMTP pour reset mot de passe : `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 
 3. OAuth2 / OpenID Connect (ajouter dans `.env`):
    - Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
@@ -46,6 +47,8 @@ npm run seed
 - `POST /register` - Inscription utilisateur
 - `POST /login` - Connexion
 - `GET /me` - Profil utilisateur (🔒)
+- `POST /forgot-password` - Demander un lien de réinitialisation
+- `POST /reset-password` - Réinitialiser le mot de passe avec le token
 - `PUT /pickup-point` - Point de retrait GPS (🔒)
 
 ### Social OAuth (`/auth`)
