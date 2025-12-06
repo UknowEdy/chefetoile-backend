@@ -8,7 +8,7 @@ const { generateAccessToken, attachSessionCookie } = require('../utils/token');
 
 const SECURE_COOKIE = process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production';
 const DEFAULT_FRONTEND_URL = (process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
-const FRONTEND_CALLBACK_PATH = process.env.FRONTEND_AUTH_CALLBACK || '/auth/callback';
+const FRONTEND_CALLBACK_PATH = process.env.FRONTEND_AUTH_CALLBACK || '/login';
 const DEFAULT_BACKEND_BASE_URL = (
   process.env.BACKEND_URL ||
   `http://localhost:${process.env.PORT || process.env.RAILWAY_PORT || 8080}`
@@ -77,16 +77,23 @@ const getRedirectUri = (req, provider) => {
 
 const buildSuccessRedirect = (req, token, provider, isNewUser, stored) => {
   const frontendBase = resolveFrontendBase(req, stored);
-  return `${frontendBase}${FRONTEND_CALLBACK_PATH}?token=${encodeURIComponent(token)}&provider=${provider}&newUser=${
-    isNewUser ? '1' : '0'
-  }`;
+  const params = new URLSearchParams({
+    oauth: 'success',
+    provider,
+    newUser: isNewUser ? '1' : '0',
+  });
+  if (token) params.set('token', token);
+  return `${frontendBase}${FRONTEND_CALLBACK_PATH}?${params.toString()}`;
 };
 
 const buildErrorRedirect = (req, message, provider, stored) => {
   const frontendBase = resolveFrontendBase(req, stored);
-  return `${frontendBase}${FRONTEND_CALLBACK_PATH}?error=${encodeURIComponent(message)}${
-    provider ? `&provider=${provider}` : ''
-  }`;
+  const params = new URLSearchParams({
+    oauth: 'error',
+    message,
+  });
+  if (provider) params.set('provider', provider);
+  return `${frontendBase}${FRONTEND_CALLBACK_PATH}?${params.toString()}`;
 };
 
 const splitName = (name = '') => {
@@ -219,7 +226,7 @@ exports.googleCallback = async (req, res) => {
   clearFlowCookie(res, 'google');
 
   if (!stored || stored.state !== req.query.state) {
-    return res.redirect(buildErrorRedirect('State invalide ou expiré', 'google'));
+    return res.redirect(buildErrorRedirect(req, 'State invalide ou expiré', 'google'));
   }
 
   try {
@@ -279,7 +286,7 @@ exports.facebookCallback = async (req, res) => {
   clearFlowCookie(res, 'facebook');
 
   if (!stored || stored.state !== req.query.state) {
-    return res.redirect(buildErrorRedirect('State invalide ou expiré', 'facebook'));
+    return res.redirect(buildErrorRedirect(req, 'State invalide ou expiré', 'facebook'));
   }
 
   try {
@@ -356,7 +363,7 @@ exports.githubCallback = async (req, res) => {
   clearFlowCookie(res, 'github');
 
   if (!stored || stored.state !== req.query.state) {
-    return res.redirect(buildErrorRedirect('State invalide ou expiré', 'github'));
+    return res.redirect(buildErrorRedirect(req, 'State invalide ou expiré', 'github'));
   }
 
   try {
@@ -443,7 +450,7 @@ exports.appleCallback = async (req, res) => {
   clearFlowCookie(res, 'apple');
 
   if (!stored || stored.state !== (req.body?.state || req.query.state)) {
-    return res.redirect(buildErrorRedirect('State invalide ou expiré', 'apple'));
+    return res.redirect(buildErrorRedirect(req, 'State invalide ou expiré', 'apple'));
   }
 
   try {

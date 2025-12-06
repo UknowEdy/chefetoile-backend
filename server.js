@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 const logger = require('./utils/logger');
 
 // --- Import des routes ---
@@ -73,7 +74,10 @@ app.get('/', (req, res) => {
 // ------------------------------------------------------------
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(cookieParser(process.env.COOKIE_SECRET || 'chefetoile_cookie_secret'));
+
+// Utilise un secret fort fourni par l'env, sinon génère un secret éphémère pour le dev
+const cookieSecret = process.env.COOKIE_SECRET || crypto.randomBytes(48).toString('hex');
+app.use(cookieParser(cookieSecret));
 
 // ------------------------------------------------------------
 // 🛡️ Rate limiting

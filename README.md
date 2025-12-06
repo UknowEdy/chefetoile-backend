@@ -18,7 +18,7 @@ npm install
    - `PORT` : Port du serveur (défaut: 3001)
    - `FRONTEND_URL` : URL de l'UI (ex: http://localhost:5173)
    - `BACKEND_URL` : URL publique du backend (ex: http://localhost:8080)
-   - `FRONTEND_AUTH_CALLBACK` : page frontend qui gère le callback social (par défaut `/auth/callback`)
+   - `FRONTEND_AUTH_CALLBACK` : page frontend qui gère le callback social (par défaut `/login`)
    - `COOKIE_SECRET`, `SESSION_COOKIE_NAME` : sécurité cookies pour le JWT httpOnly
 
 3. OAuth2 / OpenID Connect (ajouter dans `.env`):
